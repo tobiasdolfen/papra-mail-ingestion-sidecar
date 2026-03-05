@@ -49,19 +49,15 @@ async function deliverToWebhook(email: Record<string, unknown>, config: NonNulla
 }
 
 async function deliverToDirectory(email: Record<string, unknown>, config: NonNullable<Config['output']>, requestId: string) {
-  const dir = join(config.directory, requestId);
-  await mkdir(dir, { recursive: true });
+  await mkdir(config.directory, { recursive: true });
 
   const attachments = (email.attachments as Array<{ filename?: string; content: Uint8Array; mimeType?: string }>) ?? [];
 
   for (const attachment of attachments) {
     const filename = attachment.filename || `attachment_${attachments.indexOf(attachment)}`;
-    await writeFile(join(dir, filename), attachment.content);
+    await writeFile(join(config.directory, filename), attachment.content);
     logger.info({ requestId, filename }, 'Saved attachment');
   }
-
-  const { attachments: _, ...metadata } = email;
-  await writeFile(join(dir, 'metadata.json'), JSON.stringify(metadata, null, 2));
 }
 
 async function processMessage(source: Uint8Array, config: Config) {
@@ -107,6 +103,10 @@ async function pollMailbox(config: Config) {
     logger: false,
   });
 
+  client.on('error', (error: Error) => {
+    logger.error({ error }, 'IMAP connection error');
+  });
+
   try {
     await client.connect();
     logger.info({ host: config.imap.host, folder: config.imap.folder }, 'Connected to IMAP server');
@@ -136,9 +136,9 @@ async function pollMailbox(config: Config) {
   } catch (error) {
     logger.error({ error }, 'IMAP polling failed');
     try {
-      await client.logout();
+      await client.close();
     } catch {
-      // ignore logout errors after failure
+      // ignore close errors after failure
     }
   }
 }
@@ -166,7 +166,11 @@ async function main() {
 
   // eslint-disable-next-line no-unmodified-loop-condition
   while (running) {
-    await pollMailbox(config);
+    try {
+      await pollMailbox(config);
+    } catch (error) {
+      logger.error({ error }, 'Unexpected polling error');
+    }
     if (running) {
       await new Promise(resolve => setTimeout(resolve, config.imap.pollIntervalMs));
     }

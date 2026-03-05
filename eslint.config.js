@@ -5,7 +5,7 @@ export default antfu({
     semi: true,
   },
 
-  ignores: ['README.md', '.gitlab-ci.yml'],
+  ignores: ['README.md', '*.yaml', '*.yml'],
 
   rules: {
     // To allow export on top of files

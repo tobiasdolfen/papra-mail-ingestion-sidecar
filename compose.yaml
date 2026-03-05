@@ -1,0 +1,17 @@
+services:
+  papra-intake:
+    image: tdolfen/papra-mail-ingestion:latest
+    restart: unless-stopped
+    environment:
+      IMAP_HOST: ${IMAP_HOST}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_SECURE: ${IMAP_SECURE:-true}
+      IMAP_USER: ${IMAP_USER}
+      IMAP_PASS: ${IMAP_PASS}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-30000}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      OUTPUT_DIR: ${OUTPUT_DIR:-}
+    volumes:
+      - ./output:/app/output  # mount Papra ingestion folder
