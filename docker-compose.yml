@@ -1,0 +1,7 @@
+services:
+  papra-intake:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./output:/app/output

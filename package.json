@@ -1,0 +1,43 @@
+{
+  "name": "@papra/intake-service",
+  "type": "module",
+  "version": "1.0.3",
+  "description": "IMAP mailbox watcher for Papra document ingestion",
+  "author": "Corentin Thomasset <corentinth@proton.me> (https://corentin.tech)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.com/tdolfen/papra-intake-service"
+  },
+  "bugs": {
+    "url": "https://gitlab.com/tdolfen/papra-intake-service/-/issues"
+  },
+  "keywords": [
+    "email",
+    "imap",
+    "papra",
+    "document",
+    "ingestion"
+  ],
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "typecheck": "tsc --noEmit",
+    "release": "bumpp --commit --tag --push"
+  },
+  "dependencies": {
+    "@crowlog/logger": "^2.2.2",
+    "@owlrelay/webhook": "^0.0.2",
+    "imapflow": "^1.0.171",
+    "postal-mime": "^2.4.1"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^3.16.0",
+    "@types/bun": "^1.2.4",
+    "bumpp": "^10.0.1",
+    "eslint": "^9.18.0",
+    "typescript": "^5.7.3"
+  }
+}
