@@ -1,27 +1,73 @@
-# Papra - Email proxy
+# Custom Papra Mail Ingestion Sidecar
 
-This repository contains the source code for the Papra email proxy. The Papra email proxy is a custom [Cloudflare Email worker](https://developers.cloudflare.com/email-routing/email-workers/) that allows to forward emails to your [Papra](https://papra.app) instance for document ingestion.
+This is a custom adapted version of [Papra EMail Proxy](https://github.com/papra-hq/email-proxy/tree/main) to ingest mail via IMAP. It watches an IMAP mailbox for new emails and delivers them to Papra either by writing attachments directly to a mounted ingestion folder or by triggering the Papra webhook — or both.
 
-> [!TIP]
-> For a more managed solution, you can consider using [OwlRelay](https://owlrelay.email) which is a hosted and managed solution to proxy emails to your Papra instance.
+Designed to run as a Docker sidecar alongside Papra or as a standalone service.
+
+## Configuration
+
+Copy `.env.example` to `.env` and configure:
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `IMAP_HOST` | Yes | — | IMAP server hostname |
+| `IMAP_PORT` | No | `993` | IMAP server port |
+| `IMAP_SECURE` | No | `true` | Use TLS |
+| `IMAP_USER` | Yes | — | IMAP username |
+| `IMAP_PASS` | Yes | — | IMAP password |
+| `IMAP_FOLDER` | No | `INBOX` | Folder to watch |
+| `POLL_INTERVAL_MS` | No | `30000` | Polling interval in ms |
+| `WEBHOOK_URL` | No* | — | Papra webhook endpoint (`https://<your-instance>/api/intake-emails/ingest`) |
+| `WEBHOOK_SECRET` | No* | — | Webhook auth secret (same as `INTAKE_EMAILS_WEBHOOK_SECRET` in Papra) |
+| `OUTPUT_DIR` | No* | — | Directory to save attachments (e.g. Papra's ingestion folder) |
+
+\* At least one output (`WEBHOOK_URL` or `OUTPUT_DIR`) must be configured.
 
 ## Usage
 
-1. Deploy this worker to your Cloudflare account.
-    a. Clone this repository.
-    b. Install the dependencies with `pnpm install`.
-    c. Deploy the worker with `pnpm run deploy` (alias for `wrangler publish`).
-2. Configure the worker with the following environment variables:
-    - `WEBHOOK_URL`: The ingestion endpoint of your Papra instance, basically `https://<your-instance>/api/intake-emails/ingest`.
-    - `WEBHOOK_SECRET`: The secret key to authenticate the webhook requests, the same as the `INTAKE_EMAILS_WEBHOOK_SECRET` environment variable in your Papra instance.
-3. Configure CF email routing rules to forward emails to the worker.
-   a. Create a new email catch-all rule in your Cloudflare account.
-   b. Set the action to trigger the worker you deployed in step 1.
-4. In your Papra instance, generate some "intake emails" under the "Integrations" section and set an allowed email address to receive emails from.
+### Docker Compose (recommended)
 
-## Contributing
+```yaml
+services:
+  papra-intake:
+    image: registry.gitlab.com/tdolfen/papra-intake-service:latest
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /path/to/papra/ingestion:/app/output  # optional: mount Papra ingestion folder
+```
 
-Contributions are welcome! Feel free to open issues or submit pull requests.
+Or build locally:
+
+```bash
+docker compose up -d
+```
+
+### Manual
+
+Requires [Bun](https://bun.sh).
+
+```bash
+bun install
+bun run start
+```
+
+For development with file watching:
+
+```bash
+bun run dev
+```
+
+## How It Works
+
+1. Connects to the configured IMAP mailbox
+2. Fetches unseen messages from the watched folder
+3. Parses each email with `postal-mime`
+4. Delivers to configured outputs:
+   - **Webhook**: sends the parsed email to Papra's intake endpoint via `@owlrelay/webhook`
+   - **Directory**: saves attachments and a `metadata.json` to `OUTPUT_DIR/<request-id>/`
+5. Marks processed messages as seen
+6. Waits for the configured poll interval, then repeats
 
 ## License
 
@@ -29,5 +75,4 @@ This project is licensed under the MIT License. See the [LICENSE](./LICENSE) fil
 
 ## Credits and Acknowledgements
 
-This project is crafted with ❤️ by [Corentin Thomasset](https://corentin.tech).
-If you find this project helpful, please consider [supporting my work](https://buymeacoffee.com/cthmsst).
+This project is based on [Papra - Email proxy](https://github.com/papra-hq/email-proxy) by [Corentin Thomasset](https://corentin.tech).
