@@ -118,11 +118,9 @@ async function pollMailbox(config: Config) {
       const searchResult = await client.search({ seen: false }, { uid: true });
       const uids = searchResult || [];
 
-      if (uids.length === 0) {
-        return;
+      if (uids.length > 0) {
+        logger.info({ count: uids.length }, 'Found unseen messages');
       }
-
-      logger.info({ count: uids.length }, 'Found unseen messages');
 
       for (const uid of uids) {
         try {
