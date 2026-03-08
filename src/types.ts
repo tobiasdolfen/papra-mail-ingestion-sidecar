@@ -5,6 +5,7 @@ export type Config = {
     secure: boolean;
     auth: { user: string; pass: string };
     folder: string;
+    processedFolder?: string;
     pollIntervalMs: number;
   };
   webhook?: {

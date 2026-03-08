@@ -33,6 +33,7 @@ function loadConfig(): Config {
       secure: process.env.IMAP_SECURE !== 'false',
       auth: { user, pass },
       folder: process.env.IMAP_FOLDER ?? 'INBOX',
+      processedFolder: process.env.IMAP_PROCESSED_FOLDER,
       pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? '30000'),
     },
     webhook: webhookUrl && webhookSecret ? { url: webhookUrl, secret: webhookSecret } : undefined,
@@ -114,18 +115,37 @@ async function pollMailbox(config: Config) {
     const lock = await client.getMailboxLock(config.imap.folder);
 
     try {
-      const messages = client.fetch({ seen: false }, { source: true, uid: true });
+      const searchResult = await client.search({ seen: false }, { uid: true });
+      const uids = searchResult || [];
 
-      for await (const message of messages) {
+      if (uids.length === 0) {
+        return;
+      }
+
+      logger.info({ count: uids.length }, 'Found unseen messages');
+
+      for (const uid of uids) {
         try {
-          if (!message.source) {
-            logger.warn({ uid: message.uid }, 'Message has no source, skipping');
+          const message = await client.fetchOne(String(uid), { source: true }, { uid: true });
+
+          if (!message || !message.source) {
+            logger.warn({ uid }, 'Message has no source, skipping');
             continue;
           }
+
           await processMessage(message.source, config);
-          await client.messageFlagsAdd({ uid: message.uid }, ['\\Seen'], { uid: true });
+          await client.messageFlagsAdd({ uid }, ['\\Seen'], { uid: true });
+
+          if (config.imap.processedFolder) {
+            try {
+              await client.messageMove({ uid }, config.imap.processedFolder, { uid: true });
+              logger.info({ uid, folder: config.imap.processedFolder }, 'Moved to processed folder');
+            } catch (moveError) {
+              logger.warn({ error: moveError, uid }, 'Failed to move message to processed folder');
+            }
+          }
         } catch (error) {
-          logger.error({ error, uid: message.uid }, 'Failed to process message');
+          logger.error({ error, uid }, 'Failed to process message');
         }
       }
     } finally {
