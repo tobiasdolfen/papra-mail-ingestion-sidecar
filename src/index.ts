@@ -1,7 +1,5 @@
 import type { Config } from './types';
 import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import process from 'node:process';
 import { createLogger } from '@crowlog/logger';
 import { triggerWebhook } from '@owlrelay/webhook';
 import { ImapFlow } from 'imapflow';
@@ -56,7 +54,8 @@ async function deliverToDirectory(email: Record<string, unknown>, config: NonNul
 
   for (const attachment of attachments) {
     const filename = attachment.filename || `attachment_${attachments.indexOf(attachment)}`;
-    await Bun.write(join(config.directory, filename), attachment.content);
+    const destination = Bun.file(`${config.directory}/${filename}`);
+    await Bun.write(destination, attachment.content);
     logger.info({ requestId, filename }, 'Saved attachment');
   }
 }

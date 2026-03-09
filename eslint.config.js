@@ -1,4 +1,5 @@
 import antfu from '@antfu/eslint-config';
+import globals from 'globals';
 
 export default antfu({
   stylistic: {
@@ -7,8 +8,15 @@ export default antfu({
 
   ignores: ['README.md', '*.yaml', '*.yml'],
 
+  languageOptions: {
+    globals: {
+      ...globals.node,
+      Bun: 'readonly',
+    },
+  },
+
   rules: {
-    // To allow export on top of files
+    'node/prefer-global/process': ['error', 'always'],
     'ts/no-use-before-define': ['error', { allowNamedExports: true, functions: false }],
     'curly': ['error', 'all'],
     'vitest/consistent-test-it': ['error', { fn: 'test' }],
