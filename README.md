@@ -18,6 +18,7 @@ Copy `.env.example` to `.env` and configure:
 | `IMAP_USER` | Yes | — | IMAP username |
 | `IMAP_PASS` | Yes | — | IMAP password |
 | `IMAP_FOLDER` | No | `INBOX` | Folder to watch |
+| `IMAP_PROCESSED_FOLDER` | No | — | Folder to move processed messages to (if unset, messages stay in place) |
 | `POLL_INTERVAL_MS` | No | `30000` | Polling interval in ms |
 | `WEBHOOK_URL` | No* | — | Papra webhook endpoint (`https://<your-instance>/api/intake-emails/ingest`) |
 | `WEBHOOK_SECRET` | No* | — | Webhook auth secret (same as `INTAKE_EMAILS_WEBHOOK_SECRET` in Papra) |

@@ -1,5 +1,5 @@
 import type { Config } from './types';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 import { createLogger } from '@crowlog/logger';
@@ -10,17 +10,17 @@ import PostalMime from 'postal-mime';
 const logger = createLogger({ namespace: 'papra-intake' });
 
 function loadConfig(): Config {
-  const host = process.env.IMAP_HOST;
-  const user = process.env.IMAP_USER;
-  const pass = process.env.IMAP_PASS;
+  const host = Bun.env.IMAP_HOST;
+  const user = Bun.env.IMAP_USER;
+  const pass = Bun.env.IMAP_PASS;
 
   if (!host || !user || !pass) {
     throw new Error('Missing required IMAP config: IMAP_HOST, IMAP_USER, IMAP_PASS');
   }
 
-  const webhookUrl = process.env.WEBHOOK_URL;
-  const webhookSecret = process.env.WEBHOOK_SECRET;
-  const outputDir = process.env.OUTPUT_DIR;
+  const webhookUrl = Bun.env.WEBHOOK_URL;
+  const webhookSecret = Bun.env.WEBHOOK_SECRET;
+  const outputDir = Bun.env.OUTPUT_DIR;
 
   if (!webhookUrl && !outputDir) {
     throw new Error('At least one output must be configured: WEBHOOK_URL or OUTPUT_DIR');
@@ -29,12 +29,12 @@ function loadConfig(): Config {
   return {
     imap: {
       host,
-      port: Number(process.env.IMAP_PORT ?? '993'),
-      secure: process.env.IMAP_SECURE !== 'false',
+      port: Number(Bun.env.IMAP_PORT ?? '993'),
+      secure: Bun.env.IMAP_SECURE !== 'false',
       auth: { user, pass },
-      folder: process.env.IMAP_FOLDER ?? 'INBOX',
-      processedFolder: process.env.IMAP_PROCESSED_FOLDER,
-      pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? '30000'),
+      folder: Bun.env.IMAP_FOLDER ?? 'INBOX',
+      processedFolder: Bun.env.IMAP_PROCESSED_FOLDER,
+      pollIntervalMs: Number(Bun.env.POLL_INTERVAL_MS ?? '30000'),
     },
     webhook: webhookUrl && webhookSecret ? { url: webhookUrl, secret: webhookSecret } : undefined,
     output: outputDir ? { directory: outputDir } : undefined,
@@ -56,7 +56,7 @@ async function deliverToDirectory(email: Record<string, unknown>, config: NonNul
 
   for (const attachment of attachments) {
     const filename = attachment.filename || `attachment_${attachments.indexOf(attachment)}`;
-    await writeFile(join(config.directory, filename), attachment.content);
+    await Bun.write(join(config.directory, filename), attachment.content);
     logger.info({ requestId, filename }, 'Saved attachment');
   }
 }
@@ -190,7 +190,7 @@ async function main() {
       logger.error({ error }, 'Unexpected polling error');
     }
     if (running) {
-      await new Promise(resolve => setTimeout(resolve, config.imap.pollIntervalMs));
+      await Bun.sleep(config.imap.pollIntervalMs);
     }
   }
 }
