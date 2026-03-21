@@ -6,7 +6,6 @@ export type Config = {
     auth: { user: string; pass: string };
     folder: string;
     processedFolder?: string;
-    pollIntervalMs: number;
   };
   webhook?: {
     url: string;

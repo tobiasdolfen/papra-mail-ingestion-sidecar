@@ -19,7 +19,6 @@ Copy `.env.example` to `.env` and configure:
 | `IMAP_PASS` | Yes | — | IMAP password |
 | `IMAP_FOLDER` | No | `INBOX` | Folder to watch |
 | `IMAP_PROCESSED_FOLDER` | No | — | Folder to move processed messages to (if unset, messages stay in place) |
-| `POLL_INTERVAL_MS` | No | `30000` | Polling interval in ms |
 | `WEBHOOK_URL` | No* | — | Papra webhook endpoint (`https://<your-instance>/api/intake-emails/ingest`) |
 | `WEBHOOK_SECRET` | No* | — | Webhook auth secret (same as `INTAKE_EMAILS_WEBHOOK_SECRET` in Papra) |
 | `OUTPUT_DIR` | No* | — | Directory to save attachments (e.g. Papra's ingestion folder) |
@@ -64,13 +63,14 @@ bun run dev
 ## How It Works
 
 1. Connects to the configured IMAP mailbox
-2. Fetches unseen messages from the watched folder
+2. Processes any unseen messages from the watched folder
 3. Parses each email with `postal-mime`
 4. Delivers to configured outputs:
    - **Webhook**: sends the parsed email to Papra's intake endpoint via `@owlrelay/webhook`
-   - **Directory**: saves attachments and a `metadata.json` to `OUTPUT_DIR/<request-id>/`
-5. Marks processed messages as seen
-6. Waits for the configured poll interval, then repeats
+   - **Directory**: saves attachments to `OUTPUT_DIR/`
+5. Marks processed messages as seen (optionally moves them to a processed folder)
+6. Holds the connection open using IMAP IDLE, reacting instantly when new mail arrives
+7. Automatically reconnects on connection failure
 
 ## License
 

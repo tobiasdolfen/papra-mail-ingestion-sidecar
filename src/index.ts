@@ -32,7 +32,6 @@ function loadConfig(): Config {
       auth: { user, pass },
       folder: Bun.env.IMAP_FOLDER ?? 'INBOX',
       processedFolder: Bun.env.IMAP_PROCESSED_FOLDER,
-      pollIntervalMs: Number(Bun.env.POLL_INTERVAL_MS ?? '30000'),
     },
     webhook: webhookUrl && webhookSecret ? { url: webhookUrl, secret: webhookSecret } : undefined,
     output: outputDir ? { directory: outputDir } : undefined,
@@ -52,8 +51,9 @@ async function deliverToDirectory(email: Record<string, unknown>, config: NonNul
 
   const attachments = (email.attachments as Array<{ filename?: string; content: Uint8Array; mimeType?: string }>) ?? [];
 
-  for (const attachment of attachments) {
-    const filename = attachment.filename || `attachment_${attachments.indexOf(attachment)}`;
+  for (let i = 0; i < attachments.length; i++) {
+    const attachment = attachments[i];
+    const filename = attachment.filename || `attachment_${i}`;
     const destination = Bun.file(`${config.directory}/${filename}`);
     await Bun.write(destination, attachment.content);
     logger.info({ requestId, filename }, 'Saved attachment');
@@ -94,7 +94,43 @@ async function processMessage(source: Uint8Array, config: Config) {
   }
 }
 
-async function pollMailbox(config: Config) {
+async function processUnseen(client: ImapFlow, config: Config) {
+  const searchResult = await client.search({ seen: false }, { uid: true });
+  const uids = searchResult || [];
+
+  if (uids.length === 0) {
+    return;
+  }
+
+  logger.info({ count: uids.length }, 'Found unseen messages');
+
+  for (const uid of uids) {
+    try {
+      const message = await client.fetchOne(String(uid), { source: true }, { uid: true });
+
+      if (!message || !message.source) {
+        logger.warn({ uid }, 'Message has no source, skipping');
+        continue;
+      }
+
+      await processMessage(message.source, config);
+      await client.messageFlagsAdd({ uid }, ['\\Seen'], { uid: true });
+
+      if (config.imap.processedFolder) {
+        try {
+          await client.messageMove({ uid }, config.imap.processedFolder, { uid: true });
+          logger.info({ uid, folder: config.imap.processedFolder }, 'Moved to processed folder');
+        } catch (moveError) {
+          logger.warn({ error: moveError, uid }, 'Failed to move message to processed folder');
+        }
+      }
+    } catch (error) {
+      logger.error({ error, uid }, 'Failed to process message');
+    }
+  }
+}
+
+async function watchMailbox(config: Config, running: { value: boolean }) {
   const client = new ImapFlow({
     host: config.imap.host,
     port: config.imap.port,
@@ -114,36 +150,23 @@ async function pollMailbox(config: Config) {
     const lock = await client.getMailboxLock(config.imap.folder);
 
     try {
-      const searchResult = await client.search({ seen: false }, { uid: true });
-      const uids = searchResult || [];
+      // Process any unseen messages that arrived while disconnected
+      await processUnseen(client, config);
 
-      if (uids.length > 0) {
-        logger.info({ count: uids.length }, 'Found unseen messages');
-      }
-
-      for (const uid of uids) {
+      // Hold the connection open with IDLE, reacting to new mail instantly
+      while (running.value) {
         try {
-          const message = await client.fetchOne(String(uid), { source: true }, { uid: true });
-
-          if (!message || !message.source) {
-            logger.warn({ uid }, 'Message has no source, skipping');
-            continue;
+          await client.idle();
+        } catch (idleError) {
+          // IDLE can fail if the connection drops — break out to reconnect
+          if (running.value) {
+            logger.warn({ error: idleError }, 'IDLE interrupted');
           }
-
-          await processMessage(message.source, config);
-          await client.messageFlagsAdd({ uid }, ['\\Seen'], { uid: true });
-
-          if (config.imap.processedFolder) {
-            try {
-              await client.messageMove({ uid }, config.imap.processedFolder, { uid: true });
-              logger.info({ uid, folder: config.imap.processedFolder }, 'Moved to processed folder');
-            } catch (moveError) {
-              logger.warn({ error: moveError, uid }, 'Failed to move message to processed folder');
-            }
-          }
-        } catch (error) {
-          logger.error({ error, uid }, 'Failed to process message');
+          break;
         }
+
+        // IDLE resolved — mailbox changed, check for new messages
+        await processUnseen(client, config);
       }
     } finally {
       lock.release();
@@ -151,7 +174,7 @@ async function pollMailbox(config: Config) {
 
     await client.logout();
   } catch (error) {
-    logger.error({ error }, 'IMAP polling failed');
+    logger.error({ error }, 'IMAP connection failed');
     try {
       await client.close();
     } catch {
@@ -166,30 +189,31 @@ async function main() {
   logger.info({
     host: config.imap.host,
     folder: config.imap.folder,
-    pollIntervalMs: config.imap.pollIntervalMs,
     webhookEnabled: !!config.webhook,
     outputEnabled: !!config.output,
   }, 'Starting papra-intake service');
 
-  let running = true;
+  const running = { value: true };
 
   function shutdown() {
     logger.info('Shutting down...');
-    running = false;
+    running.value = false;
   }
 
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  // eslint-disable-next-line no-unmodified-loop-condition
-  while (running) {
+  // Persistent connection with IDLE; reconnect on failure
+  while (running.value) {
     try {
-      await pollMailbox(config);
+      await watchMailbox(config, running);
     } catch (error) {
-      logger.error({ error }, 'Unexpected polling error');
+      logger.error({ error }, 'Unexpected error');
     }
-    if (running) {
-      await Bun.sleep(config.imap.pollIntervalMs);
+
+    if (running.value) {
+      logger.info('Reconnecting in 5s...');
+      await Bun.sleep(5000);
     }
   }
 }
