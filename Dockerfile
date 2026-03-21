@@ -14,4 +14,4 @@ COPY --chown=bun:bun package.json .
 COPY --chown=bun:bun src/ src/
 
 USER bun
-CMD ["bun", "run", "src/index.ts"]
+CMD ["bun", "--smol", "run", "src/index.ts"]
