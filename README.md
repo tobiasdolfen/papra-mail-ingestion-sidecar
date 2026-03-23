@@ -4,7 +4,7 @@ This is a custom adapted version of [Papra EMail Proxy](https://github.com/papra
 
 Designed to run as a Docker sidecar alongside Papra or as a standalone service.
 
-**Source:** [GitLab](https://gitlab.com/tdolfen/papra-intake-service) (primary) | [GitHub](https://github.com/tobiasdolfen/papra-mail-ingestion-sidecar) (mirror)
+**Source:** [GitLab](https://gitlab.com/TDolfen/papra-mail-ingestion-sidecar) (primary) | [GitHub](https://github.com/tobiasdolfen/papra-mail-ingestion-sidecar) (mirror)
 
 ## Configuration
 
@@ -32,7 +32,7 @@ Copy `.env.example` to `.env` and configure:
 ```yaml
 services:
   papra-intake:
-    image: registry.gitlab.com/tdolfen/papra-intake-service:latest
+    image: registry.gitlab.com/tdolfen/papra-mail-ingestion-sidecar:latest
     restart: unless-stopped
     env_file: .env
     volumes:
